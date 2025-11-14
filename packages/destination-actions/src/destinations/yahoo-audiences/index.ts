@@ -1,5 +1,5 @@
 import type { AudienceDestinationDefinition, ModifiedResponse } from '@segment/actions-core'
-import { IntegrationError } from '@segment/actions-core'
+import { defaultValues, IntegrationError } from '@segment/actions-core'
 import type { Settings, AudienceSettings } from './generated-types'
 import { generate_jwt } from './utils-rt'
 import updateSegment from './updateSegment'
@@ -17,7 +17,7 @@ const destination: AudienceDestinationDefinition<Settings, AudienceSettings> = {
   name: 'Yahoo Audiences',
   slug: 'actions-yahoo-audiences',
   mode: 'cloud',
-  description: 'Sync Segment Engage Audiences to Yahoo Ads',
+  description: 'Sync users to Yahoo Ads',
   authentication: {
     scheme: 'oauth2',
     fields: {
@@ -115,9 +115,8 @@ const destination: AudienceDestinationDefinition<Settings, AudienceSettings> = {
     },
 
     async createAudience(request, createAudienceInput) {
-      const audienceSettings = createAudienceInput.audienceSettings
       // @ts-ignore type is not defined, and we will define it later
-      const personas = audienceSettings.personas as PersonasSettings
+      const personas = createAudienceInput.personas as PersonasSettings
       if (!personas) {
         throw new IntegrationError('Missing computation parameters: Id and Key', 'MISSING_REQUIRED_FIELD', 400)
       }
@@ -169,6 +168,36 @@ const destination: AudienceDestinationDefinition<Settings, AudienceSettings> = {
 
   actions: {
     updateSegment
-  }
+  },
+  presets: [
+    {
+      name: 'Entities Audience Membership Changed',
+      partnerAction: 'updateSegment',
+      mapping: defaultValues(updateSegment.fields),
+      type: 'specificEvent',
+      eventSlug: 'warehouse_audience_membership_changed_identify'
+    },
+    {
+      name: 'Associated Entity Added',
+      partnerAction: 'updateSegment',
+      mapping: defaultValues(updateSegment.fields),
+      type: 'specificEvent',
+      eventSlug: 'warehouse_entity_added_track'
+    },
+    {
+      name: 'Associated Entity Removed',
+      partnerAction: 'updateSegment',
+      mapping: defaultValues(updateSegment.fields),
+      type: 'specificEvent',
+      eventSlug: 'warehouse_entity_removed_track'
+    },
+    {
+      name: 'Journeys Step Entered',
+      partnerAction: 'updateSegment',
+      mapping: defaultValues(updateSegment.fields),
+      type: 'specificEvent',
+      eventSlug: 'journeys_step_entered_track'
+    }
+  ]
 }
 export default destination

@@ -8,9 +8,12 @@ import { ACTION_SLUG, LIVERAMP_SFTP_SERVER, LIVERAMP_SFTP_PORT } from './propert
 
 interface SendToAWSRequest {
   audienceComputeId?: string
+  destinationInstanceID?: string
+  subscriptionId?: string
   uploadType: 's3' | 'sftp'
   filename: string
   fileContents: Buffer
+  gzipCompressFile?: boolean
   sftpInfo?: {
     sftpUsername?: string
     sftpPassword?: string
@@ -21,6 +24,7 @@ interface SendToAWSRequest {
     s3Region?: string
     s3AccessKeyId?: string
     s3SecretAccessKey?: string
+    s3BucketPath?: string
   }
 }
 
@@ -28,6 +32,7 @@ interface LRMetaPayload {
   audienceKey: string
   uploadType: 's3' | 'sftp'
   filename: string
+  gzipCompressFile?: boolean
   sftpInfo?: {
     sftpHost: string
     sftpPort: number
@@ -40,6 +45,7 @@ interface LRMetaPayload {
     s3Region: string
     s3AccessKeyId: string
     s3SecretAccessKey: string
+    s3BucketPath?: string
   }
 }
 
@@ -61,14 +67,19 @@ export const sendEventToAWS = async (request: RequestClient, input: SendToAWSReq
   // Compute file path and message dedupe id
   // Each advertiser and segment can eventually have multiple data drops, we use uuid create unique files
   const uuidValue = uuidv4()
-  const userdataFilePath = `/${ACTION_SLUG}/${input.audienceComputeId}/${uuidValue}.csv`
-  const metadataFilePath = `/${ACTION_SLUG}/${input.audienceComputeId}/meta.json`
+  const aggreagtedFilePath =
+    `${input.destinationInstanceID ?? ''}${input.subscriptionId ? '/' + input.subscriptionId : ''}${
+      input.audienceComputeId ? '/' + input.audienceComputeId : ''
+    }`.replace(/^\/+|\/+$/g, '') || ''
+  const userdataFilePath = `/${ACTION_SLUG}/${aggreagtedFilePath}/${uuidValue}.csv`
+  const metadataFilePath = `/${ACTION_SLUG}/${aggreagtedFilePath}/meta.json`
 
   // Create Metadata
   const metadata: LRMetaPayload = {
     audienceKey: input.audienceComputeId || '',
     uploadType: input.uploadType,
-    filename: input.filename
+    filename: input.filename,
+    gzipCompressFile: input.gzipCompressFile
   }
 
   if (input.uploadType === 'sftp') {
@@ -84,7 +95,8 @@ export const sendEventToAWS = async (request: RequestClient, input: SendToAWSReq
       s3BucketName: input.s3Info?.s3BucketName || '',
       s3Region: input.s3Info?.s3Region || '',
       s3AccessKeyId: input.s3Info?.s3AccessKeyId || '',
-      s3SecretAccessKey: input.s3Info?.s3SecretAccessKey || ''
+      s3SecretAccessKey: input.s3Info?.s3SecretAccessKey || '',
+      s3BucketPath: input.s3Info?.s3BucketPath || ''
     }
   }
 

@@ -2,7 +2,7 @@
 
 export interface Payload {
   /**
-   * Name of event
+   * Name of event (this will be snake cased in request)
    */
   event_name: string
   /**
@@ -12,19 +12,23 @@ export interface Payload {
     [k: string]: unknown
   }
   /**
+   * Time the event took place
+   */
+  timestamp: string | number
+  /**
    * Key-value pairs associated with a user (e.g. email: example@example.com)
    */
   user_keys?: {
-    /**
-     * Your unique ID for your user
-     */
-    user_id?: string
     [k: string]: unknown
   }
   /**
    * Additional properties to send with event
    */
   traits?: {
+    /**
+     * Event name
+     */
+    raw_event_name?: string
     [k: string]: unknown
   }
 }

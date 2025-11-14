@@ -1,3 +1,5 @@
+import { getLiquidKeys } from './liquid-directive'
+
 type ValueType = 'enrichment' | 'function' | 'literal' | 'variable'
 
 function isObject(value: any): value is object {
@@ -16,7 +18,21 @@ export function isDirective(value: FieldValue): value is Directive {
     value !== null &&
     typeof value === 'object' &&
     Object.keys(value).some((key) =>
-      ['@if', '@path', '@template', '@literal', '@arrayPath', '@case', '@replace', '@json'].includes(key)
+      [
+        '@if',
+        '@path',
+        '@template',
+        '@literal',
+        '@arrayPath',
+        '@case',
+        '@replace',
+        '@json',
+        '@flatten',
+        '@merge',
+        '@transform',
+        '@excludeWhenNull',
+        '@liquid'
+      ].includes(key)
     )
   )
 }
@@ -110,6 +126,8 @@ export interface ReplaceDirective extends DirectiveMetadata {
     ignorecase: PrimitiveValue
     pattern: string
     replacement: string
+    pattern2: string
+    replacement2: string
     value?: FieldValue
   }
 }
@@ -141,6 +159,76 @@ export function isJSONDirective(value: FieldValue): value is JSONDirective {
   )
 }
 
+export interface FlattenDirective extends DirectiveMetadata {
+  '@flatten': {
+    value: FieldValue
+    separator: string
+  }
+}
+
+export function isFlattenDirective(value: FieldValue): value is FlattenDirective {
+  return (
+    isDirective(value) &&
+    '@flatten' in value &&
+    value['@flatten'] !== null &&
+    typeof value['@flatten'] === 'object' &&
+    'value' in value['@flatten']
+  )
+}
+
+export interface MergeDirective extends DirectiveMetadata {
+  '@merge': {
+    objects: { [key: string]: FieldValue }[]
+    direction: 'left' | 'right'
+  }
+}
+
+export function isMergeDirective(value: FieldValue): value is MergeDirective {
+  return (
+    isDirective(value) &&
+    '@merge' in value &&
+    value['@merge'] !== null &&
+    typeof value['@merge'] === 'object' &&
+    'objects' in value['@merge']
+  )
+}
+
+export interface TransformDirective extends DirectiveMetadata {
+  '@transform': {
+    apply: FieldValue
+    mapping: FieldValue
+  }
+}
+
+export function isTransformDirective(value: FieldValue): value is TransformDirective {
+  return (
+    isDirective(value) &&
+    '@transform' in value &&
+    value['@transform'] !== null &&
+    typeof value['@transform'] === 'object' &&
+    'apply' in value['@transform'] &&
+    'mapping' in value['@transform']
+  )
+}
+
+export interface ExcludeWhenNullDirective extends DirectiveMetadata {
+  '@excludeWhenNull': FieldValue
+}
+
+export function isExcludeWhenNullDirective(value: FieldValue): value is ExcludeWhenNullDirective {
+  return isDirective(value) && '@excludeWhenNull' in value
+}
+
+export interface LiquidDirective extends DirectiveMetadata {
+  '@liquid': string
+}
+
+export function isLiquidDirective(value: FieldValue): value is LiquidDirective {
+  return (
+    isDirective(value) && '@liquid' in value && typeof value['@liquid'] === 'string' && value['@liquid'] !== undefined
+  )
+}
+
 type DirectiveKeysToType<T> = {
   ['@arrayPath']: (input: ArrayPathDirective) => T
   ['@case']: (input: CaseDirective) => T
@@ -150,6 +238,11 @@ type DirectiveKeysToType<T> = {
   ['@replace']: (input: ReplaceDirective) => T
   ['@template']: (input: TemplateDirective) => T
   ['@json']: (input: JSONDirective) => T
+  ['@flatten']: (input: FlattenDirective) => T
+  ['@merge']: (input: MergeDirective) => T
+  ['@transform']: (input: TransformDirective) => T
+  ['@excludeWhenNull']: (input: ExcludeWhenNullDirective) => T
+  ['@liquid']: (input: LiquidDirective) => T
 }
 
 function directiveType<T>(directive: Directive, checker: DirectiveKeysToType<T>): T | null {
@@ -177,6 +270,15 @@ function directiveType<T>(directive: Directive, checker: DirectiveKeysToType<T>)
   if (isJSONDirective(directive)) {
     return checker['@json'](directive)
   }
+  if (isFlattenDirective(directive)) {
+    return checker['@flatten'](directive)
+  }
+  if (isExcludeWhenNullDirective(directive)) {
+    return checker['@excludeWhenNull'](directive)
+  }
+  if (isLiquidDirective(directive)) {
+    return checker['@liquid'](directive)
+  }
   return null
 }
 
@@ -189,6 +291,11 @@ export type Directive =
   | ReplaceDirective
   | TemplateDirective
   | JSONDirective
+  | FlattenDirective
+  | MergeDirective
+  | TransformDirective
+  | ExcludeWhenNullDirective
+  | LiquidDirective
 
 export type PrimitiveValue = boolean | number | string | null
 export type FieldValue = Directive | PrimitiveValue | { [key: string]: FieldValue } | FieldValue[] | undefined
@@ -213,7 +320,15 @@ export function getFieldValueKeys(value: FieldValue): string[] {
         '@path': (input: PathDirective) => [input['@path']],
         '@replace': (input: ReplaceDirective) => getRawKeys(input['@replace'].value),
         '@template': (input: TemplateDirective) => getTemplateKeys(input['@template']),
-        '@json': (input: JSONDirective) => getRawKeys(input['@json'].value)
+        '@json': (input: JSONDirective) => getRawKeys(input['@json'].value),
+        '@flatten': (input: FlattenDirective) => getRawKeys(input['@flatten'].value),
+        '@merge': (input: MergeDirective) => getRawKeys(input['@merge'].objects),
+        '@transform': (input: TransformDirective) => [
+          ...getRawKeys(input['@transform'].apply),
+          ...getRawKeys(input['@transform'].mapping)
+        ],
+        '@excludeWhenNull': (_: ExcludeWhenNullDirective) => [''],
+        '@liquid': (input: LiquidDirective) => getLiquidKeys(input['@liquid'])
       })?.filter((k) => k) ?? []
     )
   } else if (isObject(value)) {

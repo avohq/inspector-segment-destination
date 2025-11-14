@@ -18,7 +18,10 @@ import {
   screen,
   user_agent,
   timezone,
-  traits
+  traits,
+  message_id,
+  consent,
+  validateConsentObject
 } from '../segment-properties'
 import { MissingUserOrAnonymousIdThrowableError } from '../errors'
 
@@ -43,21 +46,26 @@ const action: ActionDefinition<Settings, Payload> = {
     screen,
     user_agent,
     timezone,
-    traits
+    traits,
+    message_id,
+    consent
   },
   perform: (_request, { payload, statsContext }) => {
     if (!payload.anonymous_id && !payload.user_id) {
       throw MissingUserOrAnonymousIdThrowableError
     }
+    const isValidConsentObject = validateConsentObject(payload?.consent)
 
     const groupPayload: Object = {
       userId: payload?.user_id,
       anonymousId: payload?.anonymous_id,
       groupId: payload?.group_id,
       timestamp: payload?.timestamp,
+      messageId: payload?.message_id,
       context: {
         app: payload?.application,
         campaign: payload?.campaign_parameters,
+        consent: isValidConsentObject ? { ...payload?.consent } : {},
         device: payload?.device,
         ip: payload?.ip_address,
         locale: payload?.locale,

@@ -73,7 +73,9 @@ export const send = async (request: RequestClient, settings: Settings, payloads:
       eventProperties,
       eventId: null,
       eventHash: null,
-      ...(typeof eventSpecMetadata !== 'undefined' ? { eventSpecMetadata } : {})
+      ...(typeof eventSpecMetadata !== 'undefined'
+        ? { eventSpecMetadata, validatedBranchId: eventSpecMetadata.branchId }
+        : {})
     }
     return itemJSON
   })
